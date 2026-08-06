@@ -1,14 +1,8 @@
-from tensorflow.keras.models import load_model
-from tensorflow.keras.layers import DepthwiseConv2D
+import os
+os.environ["TF_USE_LEGACY_KERAS"] = "1"
 
-class PatchedDepthwiseConv2D(DepthwiseConv2D):
-    def __init__(self, *args, groups=1, **kwargs):
-        super().__init__(*args, **kwargs)
+import tf_keras
 
-model = load_model(
-    "keras_model.h5",
-    compile=False,
-    custom_objects={"DepthwiseConv2D": PatchedDepthwiseConv2D},
-)
+model = tf_keras.models.load_model("keras_model.h5", compile=False)
 model.summary()
 print("Input shape:", model.input_shape)

@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html>
+<head><title>Bin Sorter</title></head>
+<body style="font-family: sans-serif; text-align: center; padding: 24px;">
+  <h1>Which bin does this go in?</h1>
+  <video id="video" autoplay playsinline width="400"></video><br>
+  <button onclick="capture()">Take photo</button>
+  <canvas id="canvas" width="224" height="224" style="display:none;"></canvas>
+  <div id="result" style="margin-top:24px; font-size:24px;"></div>
+
+  <script>
+    const video = document.getElementById('video');
+    navigator.mediaDevices.getUserMedia({ video: true })
+      .then(stream => video.srcObject = stream);
+
+    function capture() {
+      const canvas = document.getElementById('canvas');
+      canvas.getContext('2d').drawImage(video, 0, 0, 224, 224);
+      canvas.toBlob(blob => {
+        const formData = new FormData();
+        formData.append('image', blob, 'shot.jpg');
+        fetch('/predict', { method: 'POST', body: formData })
+          .then(r => r.json())
+          .then(data => {
+            const el = document.getElementById('result');
+            el.textContent = data.ok
+              ? `${data.bin} — ${data.label} (${(data.confidence*100).toFixed(0)}%)`
+              : `Not sure — ${data.label} (${(data.confidence*100).toFixed(0)}%)`;
+          });
+      }, 'image/jpeg');
+    }
+  </script>
+</body>
+</html>
