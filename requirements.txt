@@ -4,3 +4,4 @@ numpy
 pillow
 tensorflow
 tf-keras
+mediapipe
