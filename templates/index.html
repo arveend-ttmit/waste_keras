@@ -1,36 +1,154 @@
 <!DOCTYPE html>
-<html>
-<head><title>Bin Sorter — Live</title></head>
-<body style="font-family: sans-serif; text-align: center; padding: 20px; background: #111; color: #eee;">
-  <h1>Hold the item inside the box</h1>
-  <img src="/video_feed" width="640" style="border-radius: 12px;">
-  <div id="banner" style="margin: 20px auto; max-width: 640px; padding: 28px;
-       border-radius: 12px; background: #444; font-size: 40px; font-weight: 500;">
-    Starting...
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bin Sorter</title>
+<style>
+  :root {
+    --bg: #0d0d0e;
+    --surface: #18181a;
+    --border: #2a2a2e;
+    --text: #ededed;
+    --muted: #8a8a90;
+    --bin1: #4c8b2b;
+    --bin2: #2b6cb0;
+    --bin3: #b7791f;
+    --idle: #2a2a2e;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 32px 20px; background: var(--bg); color: var(--text);
+    font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+    display: flex; flex-direction: column; align-items: center; gap: 20px;
+  }
+  .wrap { width: 100%; max-width: 680px; }
+  header { text-align: center; margin-bottom: 4px; }
+  h1 { font-size: 22px; font-weight: 600; margin: 0 0 6px; letter-spacing: -0.01em; }
+  .sub { color: var(--muted); font-size: 14px; margin: 0; }
+
+  .feed {
+    position: relative; border-radius: 16px; overflow: hidden;
+    border: 1px solid var(--border); background: #000; line-height: 0;
+  }
+  .feed img { width: 100%; display: block; }
+  .pill {
+    position: absolute; top: 12px; left: 12px; z-index: 2;
+    background: rgba(0,0,0,.6); backdrop-filter: blur(8px);
+    border: 1px solid rgba(255,255,255,.12); border-radius: 999px;
+    padding: 5px 12px; font-size: 12px; color: var(--muted);
+    display: flex; align-items: center; gap: 7px; line-height: 1;
+  }
+  .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--muted); }
+  .dot.live { background: #4c8b2b; box-shadow: 0 0 0 0 rgba(76,139,43,.7); animation: pulse 1.8s infinite; }
+  @keyframes pulse {
+    70% { box-shadow: 0 0 0 7px rgba(76,139,43,0); }
+    100% { box-shadow: 0 0 0 0 rgba(76,139,43,0); }
+  }
+
+  .banner {
+    border-radius: 16px; padding: 26px 24px; text-align: center;
+    background: var(--idle); border: 1px solid var(--border);
+    transition: background .35s ease, border-color .35s ease;
+  }
+  .banner .big { font-size: 40px; font-weight: 600; letter-spacing: -0.02em; line-height: 1.1; }
+  .banner .small { font-size: 14px; opacity: .85; margin-top: 6px; }
+  .meter { height: 4px; border-radius: 999px; background: rgba(255,255,255,.15);
+           margin-top: 16px; overflow: hidden; }
+  .meter span { display: block; height: 100%; width: 0%; background: #fff;
+                opacity: .8; transition: width .3s ease; }
+
+  .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+  .stat {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 12px; padding: 14px; text-align: center;
+  }
+  .stat .n { font-size: 26px; font-weight: 600; letter-spacing: -0.02em; }
+  .stat .l { font-size: 11px; color: var(--muted); text-transform: uppercase;
+             letter-spacing: .06em; margin-top: 3px; }
+
+  .totals { display: flex; justify-content: space-between; align-items: center;
+            background: var(--surface); border: 1px solid var(--border);
+            border-radius: 12px; padding: 14px 18px; font-size: 14px; }
+  .totals .muted { color: var(--muted); }
+  button {
+    background: transparent; border: 1px solid var(--border); color: var(--muted);
+    border-radius: 8px; padding: 7px 14px; font-size: 13px; cursor: pointer;
+    font-family: inherit; transition: all .18s ease;
+  }
+  button:hover { border-color: #46464c; color: var(--text); }
+</style>
+</head>
+<body>
+<div class="wrap" style="display:flex; flex-direction:column; gap:16px;">
+
+  <header>
+    <h1>Rubbish Bin Sorter</h1>
+    <p class="sub">Hold an item inside the box on screen</p>
+  </header>
+
+  <div class="feed">
+    <div class="pill"><span class="dot" id="dot"></span><span id="status">connecting</span></div>
+    <img src="/video_feed" alt="Live camera">
   </div>
-  <div id="stats" style="margin: 12px auto; max-width: 640px;
-       font-size: 16px; opacity: 0.8; line-height: 1.6;">
-    0 items · ~0.00 kg
+
+  <div class="banner" id="banner">
+    <div class="big" id="bannerBig">Starting…</div>
+    <div class="small" id="bannerSmall">waiting for camera</div>
+    <div class="meter"><span id="meter"></span></div>
   </div>
-  
-  <script>
-    setInterval(() => {
-      fetch('/result').then(r => r.json()).then(d => {
-        const el = document.getElementById('banner');
-        const colours = {
-          "BIN 1": "#3B6D11", "BIN 2": "#185FA5", "BIN 3": "#854F0B"
-        };
-        el.style.background = d.ok ? colours[d.bin] : "#444";
-        el.innerHTML = d.ok
-          ? `${d.bin}<div style="font-size:18px;opacity:.85;">${d.label} — ${(d.confidence*100).toFixed(0)}%</div>`
-          : `${d.label}<div style="font-size:18px;opacity:.85;">${(d.confidence*100).toFixed(0)}%</div>`;
-      });
-      fetch('/session').then(r => r.json()).then(s => {
-        document.getElementById('stats').innerHTML =
-          `${s.total_items} items · ~${(s.est_weight_g / 1000).toFixed(2)} kg` +
-          Object.entries(s.counts).map(([b, n]) => `<br>${b}: ${n}`).join('');
-      });
-    }, 400);
-  </script>
+
+  <div class="stats" id="stats"></div>
+
+  <div class="totals">
+    <div><strong id="totalItems">0</strong> <span class="muted">items sorted</span></div>
+    <div class="muted">~<strong id="totalWeight">0.00</strong> kg <span style="opacity:.6">(est.)</span></div>
+    <button onclick="resetSession()">Reset</button>
+  </div>
+
+</div>
+
+<script>
+const COLOURS = { "BIN 1": "#4c8b2b", "BIN 2": "#2b6cb0", "BIN 3": "#b7791f" };
+const BINS = ["BIN 1", "BIN 2", "BIN 3"];
+
+function resetSession() {
+  fetch('/session/reset', { method: 'POST' });
+}
+
+function renderResult(d) {
+  const banner = document.getElementById('banner');
+  const colour = d.ok ? COLOURS[d.bin] : null;
+
+  banner.style.background = colour || "var(--idle)";
+  banner.style.borderColor = colour || "var(--border)";
+  document.getElementById('bannerBig').textContent = d.ok ? d.bin : d.label;
+  document.getElementById('bannerSmall').textContent = d.ok
+    ? `${d.label} · ${(d.confidence * 100).toFixed(0)}% confident`
+    : `${(d.confidence * 100).toFixed(0)}% · hold an item in the box`;
+  document.getElementById('meter').style.width = (d.confidence * 100).toFixed(0) + '%';
+
+  document.getElementById('dot').classList.add('live');
+  document.getElementById('status').textContent = 'live';
+}
+
+function renderSession(s) {
+  document.getElementById('stats').innerHTML = BINS.map(b => `
+    <div class="stat">
+      <div class="n" style="color:${COLOURS[b]}">${s.counts[b] || 0}</div>
+      <div class="l">${b}</div>
+    </div>`).join('');
+  document.getElementById('totalItems').textContent = s.total_items;
+  document.getElementById('totalWeight').textContent = (s.est_weight_g / 1000).toFixed(2);
+}
+
+setInterval(() => {
+  fetch('/result').then(r => r.json()).then(renderResult).catch(() => {
+    document.getElementById('dot').classList.remove('live');
+    document.getElementById('status').textContent = 'offline';
+  });
+  fetch('/session').then(r => r.json()).then(renderSession);
+}, 400);
+</script>
 </body>
 </html>
