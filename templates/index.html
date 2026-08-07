@@ -8,7 +8,11 @@
        border-radius: 12px; background: #444; font-size: 40px; font-weight: 500;">
     Starting...
   </div>
-
+  <div id="stats" style="margin: 12px auto; max-width: 640px;
+       font-size: 16px; opacity: 0.8; line-height: 1.6;">
+    0 items · ~0.00 kg
+  </div>
+  
   <script>
     setInterval(() => {
       fetch('/result').then(r => r.json()).then(d => {
@@ -20,6 +24,11 @@
         el.innerHTML = d.ok
           ? `${d.bin}<div style="font-size:18px;opacity:.85;">${d.label} — ${(d.confidence*100).toFixed(0)}%</div>`
           : `${d.label}<div style="font-size:18px;opacity:.85;">${(d.confidence*100).toFixed(0)}%</div>`;
+      });
+      fetch('/session').then(r => r.json()).then(s => {
+        document.getElementById('stats').innerHTML =
+          `${s.total_items} items · ~${(s.est_weight_g / 1000).toFixed(2)} kg` +
+          Object.entries(s.counts).map(([b, n]) => `<br>${b}: ${n}`).join('');
       });
     }, 400);
   </script>
