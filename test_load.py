@@ -6,3 +6,6 @@ import tf_keras
 model = tf_keras.models.load_model("keras_model.h5", compile=False)
 model.summary()
 print("Input shape:", model.input_shape)
+
+
+print("hello 1")
