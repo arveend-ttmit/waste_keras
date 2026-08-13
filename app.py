@@ -9,6 +9,8 @@ import cv2
 import numpy as np
 import tf_keras
 import mediapipe as mp
+from mediapipe.tasks.python import BaseOptions
+from mediapipe.tasks.python.vision import HandLandmarker, HandLandmarkerOptions, RunningMode
 from flask import Flask, Response, render_template, jsonify
 from PIL import Image
 
@@ -23,17 +25,17 @@ BIN_MAP = {
 }
 NOTHING_LABEL = "Nothing"          # must match labels.txt exactly
 CONFIDENCE_THRESHOLD = 0.70
-MARGIN_MIN = 0.25                  # top1 - top2 score gap required to trust a prediction
+MARGIN_MIN = 0.25
 
-ROI_FRACTION = 0.55                # fallback static box, used only if no hand is found yet
-PREDICT_EVERY = 5                  # run the model every Nth frame
-SMOOTH_WINDOW = 7                  # majority vote over the last N predictions
+ROI_FRACTION = 0.55                # fallback static box, used only if no hand found yet
+PREDICT_EVERY = 5
+SMOOTH_WINDOW = 7
 
-BOX_SCALE = 2.2                    # hand-crop box size relative to hand span
-SMOOTH_ALPHA = 0.35                # EMA smoothing for the tracked box
+BOX_SCALE = 2.2
+SMOOTH_ALPHA = 0.35
 MIN_BOX_SIDE = 120
 
-RESET_AFTER_S = 1.0                # how long "Nothing" must persist before session resets
+RESET_AFTER_S = 1.0
 
 AVG_WEIGHT_G = {
     "Paper":         20,
@@ -46,13 +48,15 @@ model = tf_keras.models.load_model("keras_model.h5", compile=False)
 with open("labels.txt", encoding="utf-8") as f:
     labels = [line.strip().split(" ", 1)[1] for line in f if line.strip()]
 
-# ---------- Hand tracking ----------
-mp_hands = mp.solutions.hands
-hands = mp_hands.Hands(
-    static_image_mode=False,
-    max_num_hands=1,
-    min_detection_confidence=0.5,
-    min_tracking_confidence=0.5,
+# ---------- Hand tracking (Tasks API) ----------
+hand_landmarker = HandLandmarker.create_from_options(
+    HandLandmarkerOptions(
+        base_options=BaseOptions(model_asset_path="hand_landmarker.task"),
+        running_mode=RunningMode.VIDEO,
+        num_hands=1,
+        min_hand_detection_confidence=0.5,
+        min_tracking_confidence=0.5,
+    )
 )
 smoothed_box = None
 
@@ -68,7 +72,6 @@ nothing_since = None
 
 # ---------- Helpers ----------
 def roi_box(frame):
-    """Static centred square — used as a fallback guide box only."""
     h, w = frame.shape[:2]
     side = int(min(h, w) * ROI_FRACTION)
     x1, y1 = (w - side) // 2, (h - side) // 2
@@ -89,17 +92,19 @@ def classify(crop):
     return labels[int(order[0])], top, top - second
 
 
-def hand_roi(frame):
+def hand_roi(frame, timestamp_ms):
     """Return (x1, y1, x2, y2) centred on the detected hand, or None if no hand."""
     global smoothed_box
     h, w = frame.shape[:2]
-    res = hands.process(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
+    mp_image = mp.Image(image_format=mp.ImageFormat.SRGB,
+                         data=cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
+    res = hand_landmarker.detect_for_video(mp_image, timestamp_ms)
 
-    if not res.multi_hand_landmarks:
+    if not res.hand_landmarks:
         smoothed_box = None
         return None
 
-    pts = np.array([[lm.x * w, lm.y * h] for lm in res.multi_hand_landmarks[0].landmark])
+    pts = np.array([[lm.x * w, lm.y * h] for lm in res.hand_landmarks[0]])
     cx, cy = pts.mean(axis=0)
     side = max(pts[:, 0].ptp(), pts[:, 1].ptp()) * BOX_SCALE
     side = max(side, MIN_BOX_SIDE)
@@ -126,7 +131,7 @@ def generate_frames():
     cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
     print("camera opened:", cap.isOpened())
 
-    for _ in range(10):        # discard warm-up frames
+    for _ in range(10):
         cap.read()
 
     frame_no = 0
@@ -142,12 +147,12 @@ def generate_frames():
         if fallback_box is None:
             fallback_box = roi_box(frame)
 
-        box = hand_roi(frame)
+        box = hand_roi(frame, frame_no * 33)   # rough ms timestamp, just needs to increase
         tracking = box is not None
         x1, y1, x2, y2 = box if tracking else fallback_box
 
         if not tracking:
-            history.append(NOTHING_LABEL)     # no hand at all → definitely nothing
+            history.append(NOTHING_LABEL)
         elif frame_no % PREDICT_EVERY == 0:
             label, conf, margin = classify(frame[y1:y2, x1:x2])
             last_conf = conf
