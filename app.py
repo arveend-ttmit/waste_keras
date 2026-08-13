@@ -37,6 +37,11 @@ MIN_BOX_SIDE = 120
 
 RESET_AFTER_S = 1.0
 
+DETECT_EVERY = 2 # run hand detechion every N frames, to reduce load on CPU
+last_box = None
+
+DETECT_SCALE = 0.5 # scale down the image for hand detection, to reduce load on CPU
+
 AVG_WEIGHT_G = {
     "Paper":         20,
     "Plastic_Metal": 30,
@@ -93,20 +98,22 @@ def classify(crop):
 
 
 def hand_roi(frame, timestamp_ms):
-    """Return (x1, y1, x2, y2) centred on the detected hand, or None if no hand."""
     global smoothed_box
     h, w = frame.shape[:2]
+
+    small = cv2.resize(frame, None, fx=DETECT_SCALE, fy=DETECT_SCALE)
     mp_image = mp.Image(image_format=mp.ImageFormat.SRGB,
-                         data=cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
+                         data=cv2.cvtColor(small, cv2.COLOR_BGR2RGB))
     res = hand_landmarker.detect_for_video(mp_image, timestamp_ms)
 
     if not res.hand_landmarks:
         smoothed_box = None
         return None
 
+    # landmarks are normalized 0..1, so scaling back to full frame needs no extra math
     pts = np.array([[lm.x * w, lm.y * h] for lm in res.hand_landmarks[0]])
     cx, cy = pts.mean(axis=0)
-    side = max(pts[:, 0].ptp(), pts[:, 1].ptp()) * BOX_SCALE
+    side = max(np.ptp(pts[:, 0]), np.ptp(pts[:, 1])) * BOX_SCALE
     side = max(side, MIN_BOX_SIDE)
 
     box = np.array([cx - side / 2, cy - side / 2, cx + side / 2, cy + side / 2])
@@ -147,7 +154,9 @@ def generate_frames():
         if fallback_box is None:
             fallback_box = roi_box(frame)
 
-        box = hand_roi(frame, frame_no * 33)   # rough ms timestamp, just needs to increase
+        if frame_no % DETECT_EVERY == 0:
+            last_box = hand_roi(frame, frame_no * 33)
+        box = last_box  # rough ms timestamp, just needs to increase
         tracking = box is not None
         x1, y1, x2, y2 = box if tracking else fallback_box
 
