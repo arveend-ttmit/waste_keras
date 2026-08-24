@@ -25,8 +25,8 @@ BIN_MAP = {
     "Nothing":       (None,    "Nothing detected",  (90, 94, 95)),
 }
 NOTHING_LABEL = "Nothing"          # must match labels.txt exactly
-CONFIDENCE_THRESHOLD = 0.70
-MARGIN_MIN = 0.25
+CONFIDENCE_THRESHOLD = 0.40 #was 0.70
+MARGIN_MIN = 0.05 # 0.25
 
 ROI_FRACTION = 0.55                # fallback static box, shown only when no hand is tracked
 PREDICT_EVERY = 5
@@ -39,13 +39,13 @@ MIN_BOX_SIDE = 120
 DETECT_EVERY = 2
 DETECT_SCALE = 0.5
 
-STABLE_NEEDED = 4                  # consecutive agreeing votes before locking/freezing
+STABLE_NEEDED = 2   # 4               # consecutive agreeing votes before locking/freezing
 FREEZE_SECONDS = 1.2               # how long the "CONFIRMED" frame holds on screen
 RESET_AFTER_S = 1.0                # hand must be absent this long before unlocking
 
-GRASP_RATIO = 1.3                  # lower = stricter "must be gripping something"
+GRASP_RATIO = 2.5      #1.3             # lower = stricter "must be gripping something"
 
-ZONE_FRACTION = 0.6                # only hands centred in the middle 60% of frame count
+ZONE_FRACTION = 0.95 #0.6                # only hands centred in the middle 60% of frame count
 MAX_HANDS = 3                      # detect up to this many hands per frame
 
 AVG_WEIGHT_G = {
@@ -113,8 +113,8 @@ def classify(crop):
     scores = model.predict(preprocess_bgr(crop), verbose=0)[0]
     order = np.argsort(scores)[::-1]
     top, second = float(scores[order[0]]), float(scores[order[1]])
+    print(f"  classify -> {labels[int(order[0])]}  top={top:.2f}  margin={top-second:.2f}")
     return labels[int(order[0])], top, top - second
-
 
 def hand_roi_and_grasp(frame, timestamp_ms, prev_center):
     """
