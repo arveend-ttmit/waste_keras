@@ -1,0 +1,10 @@
+```json
+{
+  "item": "unknown small object",
+  "material": "unknown",
+  "estimated_grams": 5,
+  "note": "Item is too blurry to identify for sorting.",
+  "confidence": 0.0,
+  "bin": "NONE"
+}
+```

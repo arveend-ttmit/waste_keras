@@ -1,0 +1,10 @@
+```json
+{
+  "bin": "BIN 1",
+  "item": "piece of paper",
+  "material": "paper",
+  "estimated_grams": 2,
+  "note": "Place in the paper and cardboard bin.",
+  "confidence": 0.9
+}
+```

@@ -1,0 +1,10 @@
+```json
+{
+  "item": "paper coffee cup",
+  "material": "paper",
+  "estimated_grams": 20,
+  "note": "Check if it has a plastic lining; if so, it may be NONE.",
+  "confidence": 0.9,
+  "bin": "BIN 1"
+}
+```
